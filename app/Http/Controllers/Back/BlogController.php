@@ -9,12 +9,10 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
-use Flasher\SweetAlert\Prime\SweetAlert;
 use Illuminate\Support\Facades\Gate;
 
 class BlogController extends Controller
 {
-
     private function generateSlug($title, $id = null)
     {
         $slug = Str::slug($title);
@@ -39,10 +37,9 @@ class BlogController extends Controller
 
         if ($user->can('admin-blog')) {
             $data = Blog::where(function ($query) use ($cari) {
-
                 if ($cari) {
                     $query->where('title', 'like', '%' . $cari . '%')
-                        ->orWhere('content', 'like', '%' . $cari . '%');
+                        ->where('content', 'like', '%' . $cari . '%');
                 }
             })->orderBy('id', 'desc')
                 ->paginate(5)
@@ -50,10 +47,9 @@ class BlogController extends Controller
         } else {
             $data = Blog::where('user_id', $user->id)
                 ->where(function ($query) use ($cari) {
-
                     if ($cari) {
                         $query->where('title', 'like', '%' . $cari . '%')
-                            ->orWhere('content', 'like', '%' . $cari . '%');
+                            ->where('content', 'like', '%' . $cari . '%');
                     }
                 })->orderBy('id', 'desc')
                 ->paginate(5)
@@ -79,23 +75,23 @@ class BlogController extends Controller
     {
         $request->validate([
             'title' => 'required',
+            'description' => 'required',
             'content' => 'required',
-            'content' => 'required',
-            'thumbnail' => 'required|image|mimes:jpg,jpeg,png|max:1240',
-
+            'thumbnail' => 'required|image|mimes:jpg,jpeg,png|max:10240',
+            'content' => 'required'
         ], [
-            'title.required' => 'Judul Wajib di isi',
-            'content.required' => 'Deskripsi wajib di isi',
-            'thumbnail.required' => 'Thumbnail wajib di isi',
-            'thumbnail.image' => 'Please enter image',
-            'thumbnail.mimes' => 'Please enter image',
-            'thumbnail.max' => 'Please enter image',
-
+            'title.required' => 'Judul wajib diisi!',
+            'description.required' => 'Deskripsi wajib diisi!',
+            'content.required' => 'Konten wajib diisi!',
+            'thumbnail.required' => 'Thumbnail wajib diisi!',
+            'thumbnail.image' => 'Thumbnail harus berupa gambar!',
+            'thumbnail.mimes' => 'Thumbnail harus berupa gambar dengan format .jpg, .jpeg, atau .png!',
+            'thumbnail.max' => 'Thumbnail tidak boleh lebih dari :max MB!',
         ]);
 
-        if ($request->hasfile('thumbnail')) {
-            $gambar = $request->file('thumbnail');
-            $nama_gambar = time() . '.' . $gambar->getClientOriginalExtension();
+        if ($request->hasFile('thumbnail')) {
+            $gambar  = $request->file('thumbnail');
+            $nama_gambar = time() . '_' . $gambar->getClientOriginalName();
             $lokasi = public_path('thumbnail');
             $gambar->move($lokasi, $nama_gambar);
         }
@@ -103,7 +99,7 @@ class BlogController extends Controller
         $content = $request->content;
 
         $dom = new DOMDocument();
-        $dom->loadHTML($content);
+        $dom->loadHTML($content, 9);
         $contentGambar = $dom->getElementsByTagName('img');
 
         foreach ($contentGambar as $key => $value) {
@@ -112,7 +108,7 @@ class BlogController extends Controller
             file_put_contents(public_path($contentNamaGambar), $data);
 
             $value->removeAttribute('src');
-            $value->setAttribute('src', asset($contentNamaGambar));
+            $value->setAttribute('src', $contentNamaGambar);
         }
 
         $content = $dom->saveHTML();
@@ -123,13 +119,12 @@ class BlogController extends Controller
             'description' => $request->description,
             'thumbnail' => $nama_gambar,
             'content' => $content,
-            'user_id' => auth()->user()->id,
             'status' => $request->status,
-
+            'user_id' => Auth::user()->id
         ];
 
-        Blog::Create($data);
-        Sweetalert()->success('data berhasil disimpan');
+        Blog::create($data);
+        sweetalert()->success('Data berhasil disimpan!');
         return redirect()->route('blog.index');
     }
 
@@ -147,11 +142,10 @@ class BlogController extends Controller
     public function edit(Blog $blog)
     {
         Gate::authorize('edit', $blog);
-        $data = Blog::findOrfail($blog->id);
+        $data = Blog::findOrFail($blog->id);
 
         return view('back.blog.edit', [
-            'data' => $data,
-
+            'data' => $data
         ]);
     }
 
@@ -162,28 +156,29 @@ class BlogController extends Controller
     {
         $request->validate([
             'title' => 'required',
+            'description' => 'required',
             'content' => 'required',
-            'content' => 'required',
-            'thumbnail' => 'image|mimes:jpg,jpeg,png|max:1240',
-
+            'thumbnail' => 'image|mimes:jpg,jpeg,png|max:10240',
+            'content' => 'required'
         ], [
-            'title.required' => 'Judul Wajib di isi',
-            'content.required' => 'Deskripsi wajib di isi',
-            'thumbnail.image' => 'Please enter image',
-            'thumbnail.mimes' => 'Please enter image',
-            'thumbnail.max' => 'Please enter image',
-
+            'title.required' => 'Judul wajib diisi!',
+            'description.required' => 'Deskripsi wajib diisi!',
+            'content.required' => 'Konten wajib diisi!',
+            'thumbnail.image' => 'Thumbnail harus berupa gambar!',
+            'thumbnail.mimes' => 'Thumbnail harus berupa gambar dengan format .jpg, .jpeg, atau .png!',
+            'thumbnail.max' => 'Thumbnail tidak boleh lebih dari :max MB!',
         ]);
 
-        if ($request->hasfile('thumbnail')) {
-            if (isset($blog->thumbnail) && file_exists(public_path('thumbnail/') . $blog->thumbnail)) {
+        if ($request->hasFile('thumbnail')) {
+            if (isset($blog->thumnail) && file_exists(public_path('thumbnail/') . $blog->thumbnail)) {
                 unlink(public_path('thumbnail/') . $blog->thumbnail);
             }
-            $gambar = $request->file('thumbnail');
-            $nama_gambar = time() . '.' . $gambar->getClientOriginalExtension();
+            $gambar  = $request->file('thumbnail');
+            $nama_gambar = time() . '_' . $gambar->getClientOriginalName();
             $lokasi = public_path('thumbnail');
             $gambar->move($lokasi, $nama_gambar);
         }
+
         $content = $request->content;
 
         $dom = new DOMDocument();
@@ -194,7 +189,6 @@ class BlogController extends Controller
             if (strpos($value->getAttribute('src'), 'data:image') === 0) {
                 $data = base64_decode(explode(',', explode(';', $value->getAttribute('src'))[1])[1]);
                 $contentNamaGambar = "/upload/" . time() . $key . '.png';
-
                 file_put_contents(public_path() . $contentNamaGambar, $data);
 
                 $value->removeAttribute('src');
@@ -214,7 +208,7 @@ class BlogController extends Controller
         ];
 
         Blog::findOrFail($blog->id)->update($data);
-        sweetalert()->success('data berhasil diupdate');
+        sweetalert()->success('Data berhasil diupdate');
         return redirect()->route('blog.index');
     }
 
@@ -233,14 +227,15 @@ class BlogController extends Controller
     public function destroy(Blog $blog)
     {
         $data = Blog::findOrFail($blog->id);
+
         $dom = new DOMDocument();
-        $dom->LoadHTML($data->content, 9);
+        $dom->loadHTML($data->content, 9);
         $gambar = $dom->getElementsByTagName('img');
         $links = $dom->getElementsByTagName('a');
 
         foreach ($gambar as $key => $img) {
             $src = $img->getAttribute('src');
-            $path = Str::of($src)->After('/');
+            $path = Str::of($src)->after('/');
 
             if (File::exists($path)) {
                 File::delete($path);
@@ -249,20 +244,19 @@ class BlogController extends Controller
 
         foreach ($links as $key => $link) {
             $href = $link->getAttribute('href');
-            $path = Str::of($href)->After('/');
+            $path = Str::of($href)->after('/');
 
             if (File::exists($path)) {
                 File::delete($path);
             }
         }
 
-
         if (isset($data->thumbnail) && file_exists(public_path('thumbnail/' . $data->thumbnail))) {
-            unlink(public_path('thumbnail/' . $data->thumbnail));
+            unlink(public_path('thumbnail/') . $data->thumbnail);
         }
 
         $data->delete();
-        sweetalert()->success('data berhasil dihapus');
+        sweetalert()->success('Data berhasil dihapus');
         return redirect()->route('blog.index');
     }
 }
